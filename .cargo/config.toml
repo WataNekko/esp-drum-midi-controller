@@ -1,16 +1,11 @@
 [target.riscv32imc-unknown-none-elf]
-runner = "espflash flash --monitor --chip esp32c3 --log-format defmt"
+runner = "espflash flash --monitor --chip esp32c3"
+rustflags = ["-C", "link-arg=-Tlinkall.x", "-C", "link-arg=-Tdefmt.x"]
 
 [env]
-DEFMT_LOG="info"
+DEFMT_LOG = "info"
 
 [build]
-rustflags = [
-  # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
-  # NOTE: May negatively impact performance of produced code
-  "-C", "force-frame-pointers",
-]
-
 target = "riscv32imc-unknown-none-elf"
 
 [unstable]
