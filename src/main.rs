@@ -11,6 +11,8 @@ use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_time::Timer;
 use esp_alloc as _;
+use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::peripherals;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println as _;
@@ -20,6 +22,12 @@ use trouble_host::prelude::*;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
+    // Turn on the on-board LED when panicking to signal something went wrong.
+
+    // SAFETY: we're panicking so we should be safe as the last and only one to use the pin.
+    let led_pin = unsafe { peripherals::GPIO8::steal() };
+    let _ = Output::new(led_pin, Level::Low, OutputConfig::default());
+
     loop {}
 }
 
