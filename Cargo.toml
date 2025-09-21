@@ -11,27 +11,17 @@ embassy-executor = "0.9.1"
 embassy-futures = "0.1"
 embassy-sync = "0.7.2"
 embassy-time = "0.5.0"
-esp-alloc = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-bootloader-esp-idf = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
-  "esp32c3",
-] }
-esp-hal-embassy = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
-  "esp32c3",
-] }
-esp-hal = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
+esp-alloc = { version = "0.8.0" }
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32c3"] }
+esp-hal-embassy = { version = "0.9.0", features = ["esp32c3"] }
+esp-hal = { version = "1.0.0-rc.0", features = [
   "defmt",
   "unstable",
   "esp32c3",
 ] }
-esp-println = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
-  "defmt-espflash",
-  "esp32c3",
-] }
-esp-preempt = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
-  "defmt",
-  "esp32c3",
-] }
-esp-radio = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt", features = [
+esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
+esp-preempt = { version = "0.0.1", features = ["defmt", "esp32c3"] }
+esp-radio = { version = "0.15.0", features = [
   "ble",
   "defmt",
   "unstable",
@@ -46,6 +36,14 @@ trouble-host = { version = "0.3.0", features = [
 ] }
 static_cell = "2.1.1"
 
+[patch.crates-io]
+esp-alloc = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-bootloader-esp-idf = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-hal-embassy = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-hal = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-println = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-preempt = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-radio = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
 
 [profile.dev]
 # Rust debug is too slow.
