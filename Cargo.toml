@@ -28,10 +28,11 @@ esp-radio = { version = "0.15.0", features = [
   "esp32c3",
 ] }
 heapless = "0.9.1"
-trouble-host = { version = "0.3.0", features = [
-  "default-packet-pool-mtu-255",
+trouble-host = { version = "0.3.0", default-features = false, features = [
+  "peripheral",
+  "gatt",
   "derive",
-  "scan",
+  "default-packet-pool",
   "defmt",
 ] }
 static_cell = "2.1.1"
