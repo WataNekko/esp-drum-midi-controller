@@ -6,7 +6,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use defmt::{info, panic, unwrap, warn};
+use defmt::{info, panic, unwrap};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_time::Timer;
@@ -17,8 +17,13 @@ use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println as _;
 use esp_radio::ble::controller::BleConnector;
+use midi_types::{Channel, MidiMessage, Note, Value7};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
+
+use crate::trouble_midi::MidiService;
+
+mod trouble_midi;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -57,27 +62,9 @@ async fn main(_s: Spawner) {
     ble_bas_peripheral_run(controller).await;
 }
 
-/// Max number of connections
-const CONNECTIONS_MAX: usize = 1;
-/// Max number of L2CAP channels.
-const L2CAP_CHANNELS_MAX: usize = 2; // Signal + att
-
-// GATT Server definition
 #[gatt_server]
-struct Server {
-    battery_service: BatteryService,
-}
-
-/// Battery service
-#[gatt_service(uuid = service::BATTERY)]
-struct BatteryService {
-    /// Battery Level
-    #[descriptor(uuid = descriptors::VALID_RANGE, read, value = [0, 100])]
-    #[descriptor(uuid = descriptors::MEASUREMENT_DESCRIPTION, name = "hello", read, value = "Battery Level")]
-    #[characteristic(uuid = characteristic::BATTERY_LEVEL, read, notify, value = 10)]
-    level: u8,
-    #[characteristic(uuid = "408813df-5dd4-1f87-ec11-cdb001100000", write, read, notify)]
-    status: bool,
+struct GattServer {
+    midi_service: MidiService,
 }
 
 /// Run the BLE stack.
@@ -86,14 +73,8 @@ where
     C: Controller,
     C::Error: defmt::Format,
 {
-    // Using a fixed "random" address can be useful for testing. In real scenarios, one would
-    // use e.g. the MAC 6 byte array as the address (how to get that varies by the platform).
-    let address: Address = Address::random([0xff, 0x8f, 0x1a, 0x05, 0xe4, 0xff]);
-    info!("Our address = {:?}", address);
-
-    let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
-        HostResources::new();
-    let stack = trouble_host::new(controller, &mut resources).set_random_address(address);
+    let mut resources: HostResources<DefaultPacketPool, 1, 0> = HostResources::new();
+    let stack = trouble_host::new(controller, &mut resources);
     let Host {
         mut peripheral,
         runner,
@@ -101,10 +82,10 @@ where
     } = stack.build();
 
     info!("Starting advertising and GATT service");
-    let server = unwrap!(Server::new_with_config(GapConfig::Peripheral(
+    let server = unwrap!(GattServer::new_with_config(GapConfig::Peripheral(
         PeripheralConfig {
             name: "TrouBLE",
-            appearance: &appearance::power_device::GENERIC_POWER_DEVICE,
+            appearance: &appearance::MEDIA_PLAYER,
         }
     )));
 
@@ -114,7 +95,7 @@ where
                 Ok(conn) => {
                     // set up tasks when the connection is established to a central, so they don't
                     // run when no one is connected.
-                    let a = gatt_events_task(&server, &conn);
+                    let a = gatt_events_task(&conn);
                     let b = custom_task(&server, &conn, &stack);
                     // run until any task ends (usually because the connection has been closed),
                     // then return to advertising state.
@@ -160,51 +141,20 @@ where
 ///
 /// This function will handle the GATT events and process them.
 /// This is how we interact with read and write requests.
-async fn gatt_events_task<P: PacketPool>(
-    server: &Server<'_>,
-    conn: &GattConnection<'_, '_, P>,
-) -> Result<(), Error> {
-    let level = server.battery_service.level;
+async fn gatt_events_task<P: PacketPool>(conn: &GattConnection<'_, '_, P>) {
     let reason = loop {
-        match conn.next().await {
-            GattConnectionEvent::Disconnected { reason } => break reason,
-            GattConnectionEvent::Gatt { event } => {
-                match &event {
-                    GattEvent::Read(event) => {
-                        if event.handle() == level.handle {
-                            let value = server.get(&level);
-                            info!("[gatt] Read Event to Level Characteristic: {:?}", value);
-                        }
-                    }
-                    GattEvent::Write(event) => {
-                        if event.handle() == level.handle {
-                            info!(
-                                "[gatt] Write Event to Level Characteristic: {:?}",
-                                event.data()
-                            );
-                        }
-                    }
-                    _ => {}
-                };
-                // This step is also performed at drop(), but writing it explicitly is necessary
-                // in order to ensure reply is sent.
-                match event.accept() {
-                    Ok(reply) => reply.send().await,
-                    Err(e) => warn!("[gatt] error sending response: {:?}", e),
-                };
-            }
-            _ => {} // ignore other Gatt Connection Events
+        if let GattConnectionEvent::Disconnected { reason } = conn.next().await {
+            break reason;
         }
     };
     info!("[gatt] disconnected: {:?}", reason);
-    Ok(())
 }
 
 /// Create an advertiser to use to connect to a BLE Central, and wait for it to connect.
 async fn advertise<'values, 'server, C: Controller>(
     name: &'values str,
     peripheral: &mut Peripheral<'values, C, DefaultPacketPool>,
-    server: &'server Server<'values>,
+    server: &'server GattServer<'values>,
 ) -> Result<GattConnection<'values, 'server, DefaultPacketPool>, BleHostError<C::Error>> {
     let mut advertiser_data = [0; 31];
     let len = AdStructure::encode_slice(
@@ -235,16 +185,14 @@ async fn advertise<'values, 'server, C: Controller>(
 /// It will also read the RSSI value every 2 seconds.
 /// and will stop when the connection is closed by the central or an error occurs.
 async fn custom_task<C: Controller, P: PacketPool>(
-    server: &Server<'_>,
+    server: &GattServer<'_>,
     conn: &GattConnection<'_, '_, P>,
     stack: &Stack<'_, C, P>,
 ) {
-    let mut tick: u8 = 0;
-    let level = server.battery_service.level;
+    let midi = &server.midi_service.midi_event;
     loop {
-        tick = tick.wrapping_add(1);
-        info!("[custom_task] notifying connection of tick {}", tick);
-        if level.notify(conn, &tick).await.is_err() {
+        let packet = MidiMessage::NoteOn(Channel::C10, Note::new(36), Value7::new(100)).into();
+        if midi.notify(conn, &packet).await.is_err() {
             info!("[custom_task] error notifying connection");
             break;
         };

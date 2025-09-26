@@ -36,6 +36,8 @@ trouble-host = { version = "0.3.0", default-features = false, features = [
   "defmt",
 ] }
 static_cell = "2.1.1"
+midi-types = "0.2.1"
+midi-convert = "0.2.0"
 
 [patch.crates-io]
 esp-alloc = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
@@ -45,6 +47,7 @@ esp-hal = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-conn
 esp-println = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
 esp-preempt = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
 esp-radio = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+midi-convert = { git = "https://github.com/rust-midi/midi-convert.git", rev = "bd788b093ed17162d5cfc24a80b472b90919470a" }
 
 [profile.dev]
 # Rust debug is too slow.

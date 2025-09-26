@@ -79,7 +79,7 @@ dependencies = [
  "embedded-io",
  "embedded-io-async",
  "futures-intrusive",
- "heapless 0.8.0",
+ "heapless 0.9.1",
 ]
 
 [[package]]
@@ -574,6 +574,8 @@ dependencies = [
  "esp-println",
  "esp-radio",
  "heapless 0.9.1",
+ "midi-convert",
+ "midi-types",
  "static_cell",
  "trouble-host",
 ]
@@ -1155,6 +1157,20 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
+
+[[package]]
+name = "midi-convert"
+version = "0.2.0"
+source = "git+https://github.com/rust-midi/midi-convert.git?rev=bd788b093ed17162d5cfc24a80b472b90919470a#bd788b093ed17162d5cfc24a80b472b90919470a"
+dependencies = [
+ "midi-types",
+]
+
+[[package]]
+name = "midi-types"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c25dc5a1d7f293669c2dce9e5608e5ab2e295d2440363790b625f755ae8fdf78"
 
 [[package]]
 name = "nb"
