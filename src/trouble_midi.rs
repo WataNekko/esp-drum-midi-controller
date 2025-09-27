@@ -113,6 +113,7 @@ impl<const SIZE: usize> FromGatt for BleMidiPacket<SIZE> {
     }
 }
 
+#[allow(unused)]
 pub struct BleMidiPacketBuilder<const SIZE: usize> {
     packet: BleMidiPacket<SIZE>,
     running_status: Option<u8>,
