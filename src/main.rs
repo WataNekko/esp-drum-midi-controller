@@ -6,10 +6,8 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use defmt::{info, panic, unwrap};
+use defmt::unwrap;
 use embassy_executor::Spawner;
-use embassy_futures::{join::join, select::select};
-use embassy_time::Timer;
 use esp_alloc as _;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::peripherals;
@@ -17,13 +15,15 @@ use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println as _;
 use esp_radio::ble::controller::BleConnector;
-use midi_types::{Channel, MidiMessage, Note, Value7};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
-use crate::trouble_midi::MidiService;
+use crate::tasks::ble;
 
+mod tasks;
 mod trouble_midi;
+
+type BluetoothController = ExternalController<BleConnector<'static>, 20>;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -57,152 +57,7 @@ async fn main(_s: Spawner) {
 
     let bluetooth = peripherals.BT;
     let connector = BleConnector::new(radio, bluetooth);
-    let controller: ExternalController<_, 20> = ExternalController::new(connector);
+    let controller = BluetoothController::new(connector);
 
-    ble_bas_peripheral_run(controller).await;
-}
-
-#[gatt_server]
-struct GattServer {
-    midi_service: MidiService,
-}
-
-/// Run the BLE stack.
-pub async fn ble_bas_peripheral_run<C>(controller: C)
-where
-    C: Controller,
-    C::Error: defmt::Format,
-{
-    let mut resources: HostResources<DefaultPacketPool, 1, 0> = HostResources::new();
-    let stack = trouble_host::new(controller, &mut resources);
-    let Host {
-        mut peripheral,
-        runner,
-        ..
-    } = stack.build();
-
-    info!("Starting advertising and GATT service");
-    let server = unwrap!(GattServer::new_with_config(GapConfig::Peripheral(
-        PeripheralConfig {
-            name: "TrouBLE",
-            appearance: &appearance::MEDIA_PLAYER,
-        }
-    )));
-
-    let _ = join(ble_task(runner), async {
-        loop {
-            match advertise("Trouble Example", &mut peripheral, &server).await {
-                Ok(conn) => {
-                    // set up tasks when the connection is established to a central, so they don't
-                    // run when no one is connected.
-                    let a = gatt_events_task(&conn);
-                    let b = custom_task(&server, &conn, &stack);
-                    // run until any task ends (usually because the connection has been closed),
-                    // then return to advertising state.
-                    select(a, b).await;
-                }
-                Err(e) => {
-                    panic!("[adv] error: {:?}", e);
-                }
-            }
-        }
-    })
-    .await;
-}
-
-/// This is a background task that is required to run forever alongside any other BLE tasks.
-///
-/// ## Alternative
-///
-/// If you didn't require this to be generic for your application, you could statically spawn this
-/// with i.e.
-///
-/// ```rust,ignore
-///
-/// #[embassy_executor::task]
-/// async fn ble_task(mut runner: Runner<'static, SoftdeviceController<'static>>) {
-///     runner.run().await;
-/// }
-///
-/// spawner.must_spawn(ble_task(runner));
-/// ```
-async fn ble_task<C: Controller, P: PacketPool>(mut runner: Runner<'_, C, P>)
-where
-    C::Error: defmt::Format,
-{
-    loop {
-        if let Err(e) = runner.run().await {
-            panic!("[ble_task] error: {:?}", e);
-        }
-    }
-}
-
-/// Stream Events until the connection closes.
-///
-/// This function will handle the GATT events and process them.
-/// This is how we interact with read and write requests.
-async fn gatt_events_task<P: PacketPool>(conn: &GattConnection<'_, '_, P>) {
-    let reason = loop {
-        if let GattConnectionEvent::Disconnected { reason } = conn.next().await {
-            break reason;
-        }
-    };
-    info!("[gatt] disconnected: {:?}", reason);
-}
-
-/// Create an advertiser to use to connect to a BLE Central, and wait for it to connect.
-async fn advertise<'values, 'server, C: Controller>(
-    name: &'values str,
-    peripheral: &mut Peripheral<'values, C, DefaultPacketPool>,
-    server: &'server GattServer<'values>,
-) -> Result<GattConnection<'values, 'server, DefaultPacketPool>, BleHostError<C::Error>> {
-    let mut advertiser_data = [0; 31];
-    let len = AdStructure::encode_slice(
-        &[
-            AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
-            AdStructure::ServiceUuids16(&[[0x0f, 0x18]]),
-            AdStructure::CompleteLocalName(name.as_bytes()),
-        ],
-        &mut advertiser_data[..],
-    )?;
-    let advertiser = peripheral
-        .advertise(
-            &Default::default(),
-            Advertisement::ConnectableScannableUndirected {
-                adv_data: &advertiser_data[..len],
-                scan_data: &[],
-            },
-        )
-        .await?;
-    info!("[adv] advertising");
-    let conn = advertiser.accept().await?.with_attribute_server(server)?;
-    info!("[adv] connection established");
-    Ok(conn)
-}
-
-/// Example task to use the BLE notifier interface.
-/// This task will notify the connected central of a counter value every 2 seconds.
-/// It will also read the RSSI value every 2 seconds.
-/// and will stop when the connection is closed by the central or an error occurs.
-async fn custom_task<C: Controller, P: PacketPool>(
-    server: &GattServer<'_>,
-    conn: &GattConnection<'_, '_, P>,
-    stack: &Stack<'_, C, P>,
-) {
-    let midi = &server.midi_service.midi_event;
-    loop {
-        let packet = MidiMessage::NoteOn(Channel::C10, Note::new(36), Value7::new(100)).into();
-        if midi.notify(conn, &packet).await.is_err() {
-            info!("[custom_task] error notifying connection");
-            break;
-        };
-        // read RSSI (Received Signal Strength Indicator) of the connection.
-        if let Ok(rssi) = conn.raw().rssi(stack).await {
-            info!("[custom_task] RSSI: {:?}", rssi);
-        } else {
-            info!("[custom_task] error getting RSSI");
-            break;
-        };
-        Timer::after_secs(2).await;
-    }
+    ble::peripheral_run(controller).await;
 }
