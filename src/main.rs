@@ -6,11 +6,12 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use defmt::unwrap;
+use defmt::{timestamp, unwrap};
 use embassy_executor::Spawner;
+use embassy_time::Instant;
 use esp_alloc as _;
-use esp_hal::gpio::{Level, Output, OutputConfig};
-use esp_hal::peripherals;
+use esp_hal::gpio::{Level, Output, OutputConfig, Pin};
+use esp_hal::peripherals::{self};
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println as _;
@@ -18,7 +19,8 @@ use esp_radio::ble::controller::BleConnector;
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
-use crate::tasks::ble;
+use crate::tasks::gpio::DrumNote;
+use crate::tasks::{ble, gpio};
 
 mod tasks;
 mod trouble_midi;
@@ -40,24 +42,47 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
 
+timestamp!("[{=u64:us}]", Instant::now().as_micros());
+
 #[esp_hal_embassy::main]
-async fn main(_s: Spawner) {
+async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    esp_alloc::heap_allocator!(size: 72 * 1024);
-    let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_preempt::start(timg0.timer0);
+    {
+        let pins_notes_map = [
+            (peripherals.GPIO0.degrade(), DrumNote::HighTom),
+            (peripherals.GPIO1.degrade(), DrumNote::PedalHiHat),
+            (peripherals.GPIO3.degrade(), DrumNote::OpenHiHat),
+            (peripherals.GPIO4.degrade(), DrumNote::CrashCymbal1),
+            (peripherals.GPIO5.degrade(), DrumNote::CrashCymbal2),
+            (peripherals.GPIO6.degrade(), DrumNote::RideCymbal),
+            (peripherals.GPIO7.degrade(), DrumNote::FloorTom),
+            (peripherals.GPIO10.degrade(), DrumNote::LowTom),
+            (peripherals.GPIO20.degrade(), DrumNote::BassDrum),
+            (peripherals.GPIO21.degrade(), DrumNote::Snare),
+        ];
 
-    static RADIO: StaticCell<esp_radio::Controller<'static>> = StaticCell::new();
-    let radio = RADIO.init(unwrap!(esp_radio::init()));
+        for (pin, note) in pins_notes_map {
+            spawner.must_spawn(gpio::watch_gpio_task(pin, note));
+        }
+    }
 
-    let systimer = SystemTimer::new(peripherals.SYSTIMER);
-    esp_hal_embassy::init(systimer.alarm0);
+    {
+        esp_alloc::heap_allocator!(size: 72 * 1024);
+        let timg0 = TimerGroup::new(peripherals.TIMG0);
+        esp_preempt::start(timg0.timer0);
 
-    let bluetooth = peripherals.BT;
-    let connector = BleConnector::new(radio, bluetooth);
-    let controller = BluetoothController::new(connector);
+        static RADIO: StaticCell<esp_radio::Controller<'static>> = StaticCell::new();
+        let radio = RADIO.init(unwrap!(esp_radio::init()));
 
-    ble::peripheral_run(controller).await;
+        let systimer = SystemTimer::new(peripherals.SYSTIMER);
+        esp_hal_embassy::init(systimer.alarm0);
+
+        let bluetooth = peripherals.BT;
+        let connector = BleConnector::new(radio, bluetooth);
+        let controller = BluetoothController::new(connector);
+
+        ble::peripheral_run(controller).await;
+    }
 }

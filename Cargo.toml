@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 bt-hci = "0.5.0"
 defmt = "1.0.1"
-embassy-executor = "0.9.1"
+embassy-executor = { version = "0.9.1", features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-sync = "0.7.2"
 embassy-time = "0.5.0"
