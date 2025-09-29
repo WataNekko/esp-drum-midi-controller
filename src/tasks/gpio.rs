@@ -1,12 +1,12 @@
-use embassy_sync::{
-    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
-    signal::Signal,
-};
+use core::pin::pin;
+use embassy_futures::select::select_slice;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::{AnyPin, Input, InputConfig};
+use heapless::Vec;
 use midi_types::Note;
 
-#[derive(defmt::Format)]
+#[derive(Copy, Clone, defmt::Format)]
 #[repr(u8)]
 pub enum DrumNote {
     BassDrum = 36,
@@ -35,26 +35,49 @@ pub enum SensorsStatus {
 }
 pub type SensorsStatusSignal = Signal<NoopRawMutex, SensorsStatus>;
 
-#[embassy_executor::task(pool_size = 10)]
-pub async fn watch_gpio_task(
-    pin: AnyPin<'static>,
-    note: DrumNote,
+#[embassy_executor::task]
+pub async fn watch_gpios_task(
+    pins_notes_map: [(AnyPin<'static>, DrumNote); 10],
     status_signal: &'static SensorsStatusSignal,
 ) {
-    let mut input = Input::new(pin, InputConfig::default());
+    let mut pins_notes_map =
+        pins_notes_map.map(|(pin, note)| (Input::new(pin, InputConfig::default()), note));
 
-    const INITIAL_SENSORS_STABILIZE_TIME: Duration = Duration::from_millis(500);
+    const INITIAL_SENSORS_STABILIZE_TIME: Duration = Duration::from_millis(200);
     Timer::after(INITIAL_SENSORS_STABILIZE_TIME).await;
 
-    static mut PIN_HIGH_COUNT: u8 = 0;
+    loop {
+        select_slice(pin!(
+            pins_notes_map
+                .iter_mut()
+                .map(|(pin, ..)| pin.wait_for_high())
+                .collect::<Vec<_, 10>>()
+                .as_mut_slice()
+        ))
+        .await;
+        status_signal.signal(SensorsStatus::On);
 
-    const HIT_DEBOUNCE_TIME: Duration = Duration::from_millis(20);
-    const UNHIT_DEBOUNCE_TIME: Duration = Duration::from_micros(300);
-    const STATUS_CHANGED_DEBOUNCE_TIME: Duration = Duration::from_secs(1);
+        select_slice(pin!(
+            pins_notes_map
+                .iter_mut()
+                .map(|(pin, note)| watch_pin_for_hits(pin, *note))
+                .collect::<Vec<_, 10>>()
+                .as_mut_slice()
+        ))
+        .await;
+        status_signal.signal(SensorsStatus::Off);
+
+        const SWITCH_OFF_SENSORS_STABILIZE_TIME: Duration = Duration::from_millis(200);
+        Timer::after(SWITCH_OFF_SENSORS_STABILIZE_TIME).await;
+    }
+}
+
+async fn watch_pin_for_hits(pin: &mut Input<'_>, note: DrumNote) {
+    static mut PIN_HIGH_COUNT: u8 = 0;
 
     loop {
         {
-            input.wait_for_high().await;
+            pin.wait_for_high().await;
             let timestamp = Instant::now();
 
             // SAFETY: This task is only run on a single threaded executor, so it's safe because
@@ -64,47 +87,29 @@ pub async fn watch_gpio_task(
             // a RefCell but that would introduce unnecessary runtime check, since we know only one
             // task mutate this counter at a time. This is defined as long as this task stay on a
             // single executor on a single core.
-            let status_changed = unsafe {
-                let status_changed = if PIN_HIGH_COUNT == 0 {
-                    status_signal.signal(SensorsStatus::On);
-                    true
-                } else {
-                    false
-                };
+            unsafe {
                 PIN_HIGH_COUNT += 1;
-                status_changed
             };
 
-            let debounce_time = if status_changed {
-                STATUS_CHANGED_DEBOUNCE_TIME
-            } else {
-                UNHIT_DEBOUNCE_TIME
-            };
-            Timer::at(timestamp + debounce_time).await;
+            const UNHIT_DEBOUNCE_TIME: Duration = Duration::from_micros(300);
+            Timer::at(timestamp + UNHIT_DEBOUNCE_TIME).await;
         }
 
         {
-            input.wait_for_low().await;
+            pin.wait_for_low().await;
             let timestamp = Instant::now();
             defmt::warn!("{}", note);
 
             // SAFETY: Like above
-            let status_changed = unsafe {
+            unsafe {
                 PIN_HIGH_COUNT -= 1;
                 if PIN_HIGH_COUNT == 0 {
-                    status_signal.signal(SensorsStatus::Off);
-                    true
-                } else {
-                    false
+                    break;
                 }
             };
 
-            let debounce_time = if status_changed {
-                STATUS_CHANGED_DEBOUNCE_TIME
-            } else {
-                HIT_DEBOUNCE_TIME
-            };
-            Timer::at(timestamp + debounce_time).await;
+            const HIT_DEBOUNCE_TIME: Duration = Duration::from_millis(20);
+            Timer::at(timestamp + HIT_DEBOUNCE_TIME).await;
         }
     }
 }

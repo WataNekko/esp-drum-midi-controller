@@ -53,8 +53,8 @@ async fn main(spawner: Spawner) {
     static SENSORS_STATUS_SIGNAL: StaticCell<SensorsStatusSignal> = StaticCell::new();
     let sensors_status_signal = SENSORS_STATUS_SIGNAL.init(Signal::new());
 
-    {
-        let pins_notes_map = [
+    spawner.must_spawn(gpio::watch_gpios_task(
+        [
             (peripherals.GPIO0.degrade(), DrumNote::HighTom),
             (peripherals.GPIO1.degrade(), DrumNote::PedalHiHat),
             (peripherals.GPIO3.degrade(), DrumNote::OpenHiHat),
@@ -65,28 +65,23 @@ async fn main(spawner: Spawner) {
             (peripherals.GPIO10.degrade(), DrumNote::LowTom),
             (peripherals.GPIO20.degrade(), DrumNote::BassDrum),
             (peripherals.GPIO21.degrade(), DrumNote::Snare),
-        ];
+        ],
+        sensors_status_signal,
+    ));
 
-        for (pin, note) in pins_notes_map {
-            spawner.must_spawn(gpio::watch_gpio_task(pin, note, sensors_status_signal));
-        }
-    }
+    esp_alloc::heap_allocator!(size: 72 * 1024);
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
+    esp_preempt::start(timg0.timer0);
 
-    {
-        esp_alloc::heap_allocator!(size: 72 * 1024);
-        let timg0 = TimerGroup::new(peripherals.TIMG0);
-        esp_preempt::start(timg0.timer0);
+    static RADIO: StaticCell<esp_radio::Controller<'static>> = StaticCell::new();
+    let radio = RADIO.init(unwrap!(esp_radio::init()));
 
-        static RADIO: StaticCell<esp_radio::Controller<'static>> = StaticCell::new();
-        let radio = RADIO.init(unwrap!(esp_radio::init()));
+    let systimer = SystemTimer::new(peripherals.SYSTIMER);
+    esp_hal_embassy::init(systimer.alarm0);
 
-        let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_hal_embassy::init(systimer.alarm0);
+    let bluetooth = peripherals.BT;
+    let connector = BleConnector::new(radio, bluetooth);
+    let controller = BluetoothController::new(connector);
 
-        let bluetooth = peripherals.BT;
-        let connector = BleConnector::new(radio, bluetooth);
-        let controller = BluetoothController::new(connector);
-
-        ble::peripheral_run(controller, sensors_status_signal).await;
-    }
+    ble::peripheral_run(controller, sensors_status_signal).await;
 }
