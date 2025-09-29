@@ -4,7 +4,11 @@ use embassy_time::Timer;
 use midi_types::{Channel, MidiMessage, Note, Value7};
 use trouble_host::prelude::*;
 
-use crate::{BluetoothController, trouble_midi::MidiService};
+use crate::{
+    BluetoothController,
+    tasks::gpio::{SensorsStatus, SensorsStatusSignal},
+    trouble_midi::MidiService,
+};
 
 const BLE_SERVICE_NAME: &str = "ESP MIDI Controller";
 
@@ -13,7 +17,7 @@ struct GattServer {
     midi_service: MidiService,
 }
 
-pub async fn peripheral_run(controller: BluetoothController) {
+pub async fn peripheral_run(controller: BluetoothController, status_signal: &SensorsStatusSignal) {
     let mut resources: HostResources<DefaultPacketPool, 1, 0> = HostResources::new();
     let stack = trouble_host::new(controller, &mut resources);
     let Host {
@@ -22,7 +26,6 @@ pub async fn peripheral_run(controller: BluetoothController) {
         ..
     } = stack.build();
 
-    info!("Starting advertising and GATT service");
     let server = unwrap!(GattServer::new_with_config(GapConfig::Peripheral(
         PeripheralConfig {
             name: BLE_SERVICE_NAME,
@@ -30,14 +33,26 @@ pub async fn peripheral_run(controller: BluetoothController) {
         }
     )));
 
-    join(
-        host_runner_task(runner),
-        midi_service_task(BLE_SERVICE_NAME, &mut peripheral, &server, &stack),
-    )
+    let wait_for_status = async |status: SensorsStatus| {
+        while status_signal.wait().await != status {}
+        info!("Sensors switched {}", status);
+    };
+
+    join(host_runner_task(runner), async {
+        loop {
+            wait_for_status(SensorsStatus::On).await;
+
+            select(
+                midi_service_task(BLE_SERVICE_NAME, &mut peripheral, &server, &stack),
+                wait_for_status(SensorsStatus::Off),
+            )
+            .await;
+        }
+    })
     .await;
 }
 
-async fn host_runner_task<'a>(mut runner: Runner<'a, BluetoothController, DefaultPacketPool>) {
+async fn host_runner_task<'a>(mut runner: Runner<'a, BluetoothController, DefaultPacketPool>) -> ! {
     loop {
         unwrap!(runner.run().await);
     }
@@ -48,7 +63,8 @@ async fn midi_service_task<'a>(
     peripheral: &mut Peripheral<'a, BluetoothController, DefaultPacketPool>,
     server: &GattServer<'a>,
     stack: &Stack<'_, BluetoothController, DefaultPacketPool>,
-) {
+) -> ! {
+    info!("Starting advertising and GATT service");
     loop {
         let conn = unwrap!(advertise_and_connect(service_name, peripheral, server).await);
         select(gatt_events_task(&conn), custom_task(server, &conn, stack)).await;

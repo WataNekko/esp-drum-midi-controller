@@ -8,6 +8,7 @@
 
 use defmt::{timestamp, unwrap};
 use embassy_executor::Spawner;
+use embassy_sync::signal::Signal;
 use embassy_time::Instant;
 use esp_alloc as _;
 use esp_hal::gpio::{Level, Output, OutputConfig, Pin};
@@ -19,7 +20,7 @@ use esp_radio::ble::controller::BleConnector;
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
-use crate::tasks::gpio::DrumNote;
+use crate::tasks::gpio::{DrumNote, SensorsStatusSignal};
 use crate::tasks::{ble, gpio};
 
 mod tasks;
@@ -49,6 +50,9 @@ async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
+    static SENSORS_STATUS_SIGNAL: StaticCell<SensorsStatusSignal> = StaticCell::new();
+    let sensors_status_signal = SENSORS_STATUS_SIGNAL.init(Signal::new());
+
     {
         let pins_notes_map = [
             (peripherals.GPIO0.degrade(), DrumNote::HighTom),
@@ -64,7 +68,7 @@ async fn main(spawner: Spawner) {
         ];
 
         for (pin, note) in pins_notes_map {
-            spawner.must_spawn(gpio::watch_gpio_task(pin, note));
+            spawner.must_spawn(gpio::watch_gpio_task(pin, note, sensors_status_signal));
         }
     }
 
@@ -83,6 +87,6 @@ async fn main(spawner: Spawner) {
         let connector = BleConnector::new(radio, bluetooth);
         let controller = BluetoothController::new(connector);
 
-        ble::peripheral_run(controller).await;
+        ble::peripheral_run(controller, sensors_status_signal).await;
     }
 }
