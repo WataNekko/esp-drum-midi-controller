@@ -10,7 +10,7 @@ use esp_hal::gpio::{AnyPin, Input, InputConfig};
 use heapless::Vec;
 use midi_types::Note;
 
-#[derive(Copy, Clone, defmt::Format)]
+#[derive(Copy, Clone, PartialEq, defmt::Format)]
 #[repr(u8)]
 pub enum DrumNote {
     BassDrum = 36,
@@ -80,8 +80,13 @@ pub async fn watch_gpios_task(
     }
 }
 
-async fn watch_pin_for_hits(pin: &mut Input<'_>, note: DrumNote, hit_events: &HitEventsChannel) {
+async fn watch_pin_for_hits(
+    pin: &mut Input<'_>,
+    mut note: DrumNote,
+    hit_events: &HitEventsChannel,
+) {
     static mut PIN_HIGH_COUNT: u8 = 0;
+    static mut IS_HIHAT_PEDAL_HOLD: bool = false;
 
     loop {
         {
@@ -99,6 +104,13 @@ async fn watch_pin_for_hits(pin: &mut Input<'_>, note: DrumNote, hit_events: &Hi
                 PIN_HIGH_COUNT += 1;
             };
 
+            if note == DrumNote::PedalHiHat {
+                // SAFETY: Like above
+                unsafe {
+                    IS_HIHAT_PEDAL_HOLD = false;
+                }
+            }
+
             const UNHIT_DEBOUNCE_TIME: Duration = Duration::from_micros(300);
             Timer::at(timestamp + UNHIT_DEBOUNCE_TIME).await;
         }
@@ -114,6 +126,18 @@ async fn watch_pin_for_hits(pin: &mut Input<'_>, note: DrumNote, hit_events: &Hi
                     break;
                 }
             };
+
+            match note {
+                // SAFETY: Like above
+                DrumNote::PedalHiHat => unsafe {
+                    IS_HIHAT_PEDAL_HOLD = true;
+                },
+                // SAFETY: Like above
+                DrumNote::OpenHiHat if unsafe { IS_HIHAT_PEDAL_HOLD } => {
+                    note = DrumNote::ClosedHiHat;
+                }
+                _ => {}
+            }
 
             hit_events.force_send((timestamp, note));
 
