@@ -1,12 +1,11 @@
-use defmt::{info, unwrap};
+use defmt::{error, info, unwrap};
 use embassy_futures::{join::join, select::select};
-use embassy_time::Timer;
-use midi_types::{Channel, MidiMessage, Note, Value7};
+use midi_types::{Channel, MidiMessage, Value7};
 use trouble_host::prelude::*;
 
 use crate::{
     BluetoothController,
-    tasks::gpio::{SensorsStatus, SensorsStatusSignal},
+    tasks::gpio::{HitEventsReceiver, SensorsStatus, SensorsStatusSignal},
     trouble_midi::MidiService,
 };
 
@@ -17,7 +16,11 @@ struct GattServer {
     midi_service: MidiService,
 }
 
-pub async fn peripheral_run(controller: BluetoothController, status_signal: &SensorsStatusSignal) {
+pub async fn peripheral_run(
+    controller: BluetoothController,
+    status_signal: &SensorsStatusSignal,
+    hit_events: HitEventsReceiver<'_>,
+) {
     let mut resources: HostResources<DefaultPacketPool, 1, 0> = HostResources::new();
     let stack = trouble_host::new(controller, &mut resources);
     let Host {
@@ -43,7 +46,7 @@ pub async fn peripheral_run(controller: BluetoothController, status_signal: &Sen
             wait_for_status(SensorsStatus::On).await;
 
             select(
-                midi_service_task(BLE_SERVICE_NAME, &mut peripheral, &server, &stack),
+                midi_service_task(BLE_SERVICE_NAME, &mut peripheral, &server, hit_events),
                 wait_for_status(SensorsStatus::Off),
             )
             .await;
@@ -62,13 +65,16 @@ async fn midi_service_task<'a>(
     service_name: &str,
     peripheral: &mut Peripheral<'a, BluetoothController, DefaultPacketPool>,
     server: &GattServer<'a>,
-    stack: &Stack<'_, BluetoothController, DefaultPacketPool>,
+    hit_events: HitEventsReceiver<'_>,
 ) -> ! {
     info!("Starting advertising and GATT service");
     loop {
         let conn = unwrap!(advertise_and_connect(service_name, peripheral, server).await);
-        select(gatt_events_task(&conn), custom_task(server, &conn, stack)).await;
-        // Either task finishes means we're disconnected.
+        select(
+            gatt_events_task(&conn),
+            notify_midi_events_task(server, &conn, hit_events),
+        )
+        .await; // Either task finishes means we're disconnected.
     }
 }
 
@@ -110,25 +116,27 @@ async fn gatt_events_task<P: PacketPool>(conn: &GattConnection<'_, '_, P>) {
     info!("[gatt] disconnected: {:?}", reason);
 }
 
-async fn custom_task(
+async fn notify_midi_events_task(
     server: &GattServer<'_>,
     conn: &GattConnection<'_, '_, DefaultPacketPool>,
-    stack: &Stack<'_, BluetoothController, DefaultPacketPool>,
+    hit_events: HitEventsReceiver<'_>,
 ) {
     let midi = &server.midi_service.midi_event;
+
     loop {
-        let packet = MidiMessage::NoteOn(Channel::C10, Note::new(36), Value7::new(100)).into();
+        let (timestamp, note) = hit_events.receive().await;
+
+        const MIDI_CHANNEL: Channel = Channel::new(9);
+        const MIDI_VELOCITY: Value7 = Value7::new(100);
+        let packet = (
+            timestamp,
+            MidiMessage::NoteOn(MIDI_CHANNEL, note.into(), MIDI_VELOCITY),
+        )
+            .into();
+
         if midi.notify(conn, &packet).await.is_err() {
-            info!("[custom_task] error notifying connection");
+            error!("[notify_midi_events_task] error notifying connection");
             break;
         };
-        // read RSSI (Received Signal Strength Indicator) of the connection.
-        if let Ok(rssi) = conn.raw().rssi(stack).await {
-            info!("[custom_task] RSSI: {:?}", rssi);
-        } else {
-            info!("[custom_task] error getting RSSI");
-            break;
-        };
-        Timer::after_secs(2).await;
     }
 }

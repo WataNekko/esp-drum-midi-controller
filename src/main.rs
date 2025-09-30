@@ -8,6 +8,7 @@
 
 use defmt::{timestamp, unwrap};
 use embassy_executor::Spawner;
+use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use embassy_time::Instant;
 use esp_alloc as _;
@@ -20,7 +21,7 @@ use esp_radio::ble::controller::BleConnector;
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
-use crate::tasks::gpio::{DrumNote, SensorsStatusSignal};
+use crate::tasks::gpio::{DrumNote, HitEventsChannel, SensorsStatusSignal};
 use crate::tasks::{ble, gpio};
 
 mod tasks;
@@ -53,6 +54,9 @@ async fn main(spawner: Spawner) {
     static SENSORS_STATUS_SIGNAL: StaticCell<SensorsStatusSignal> = StaticCell::new();
     let sensors_status_signal = SENSORS_STATUS_SIGNAL.init(Signal::new());
 
+    static HIT_EVENTS_CHANNEL: StaticCell<HitEventsChannel> = StaticCell::new();
+    let hit_events_channel = HIT_EVENTS_CHANNEL.init(Channel::new());
+
     spawner.must_spawn(gpio::watch_gpios_task(
         [
             (peripherals.GPIO0.degrade(), DrumNote::HighTom),
@@ -67,6 +71,7 @@ async fn main(spawner: Spawner) {
             (peripherals.GPIO21.degrade(), DrumNote::Snare),
         ],
         sensors_status_signal,
+        hit_events_channel,
     ));
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
@@ -83,5 +88,10 @@ async fn main(spawner: Spawner) {
     let connector = BleConnector::new(radio, bluetooth);
     let controller = BluetoothController::new(connector);
 
-    ble::peripheral_run(controller, sensors_status_signal).await;
+    ble::peripheral_run(
+        controller,
+        sensors_status_signal,
+        hit_events_channel.receiver(),
+    )
+    .await;
 }
