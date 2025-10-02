@@ -1,5 +1,6 @@
-use defmt::{error, info, unwrap};
+use defmt::{error, info, unwrap, warn};
 use embassy_futures::{join::join, select::select};
+use embassy_time::{Duration, with_timeout};
 use midi_types::{Channel, MidiMessage, Value7};
 use trouble_host::prelude::*;
 
@@ -66,16 +67,24 @@ async fn midi_service_task<'a>(
     peripheral: &mut Peripheral<'a, BluetoothController, DefaultPacketPool>,
     server: &GattServer<'a>,
     hit_events: HitEventsReceiver<'_>,
-) -> ! {
+) {
     info!("Starting advertising and GATT service");
-    loop {
-        let conn = unwrap!(advertise_and_connect(service_name, peripheral, server).await);
+
+    while let Ok(res) = with_timeout(
+        Duration::from_secs(60),
+        advertise_and_connect(service_name, peripheral, server),
+    )
+    .await
+    {
+        let conn = unwrap!(res);
         select(
             gatt_events_task(&conn),
             notify_midi_events_task(server, &conn, hit_events),
         )
         .await; // Either task finishes means we're disconnected.
     }
+
+    warn!("[adv] Timeout. Not connected.");
 }
 
 async fn advertise_and_connect<'a, 's, C: Controller>(
