@@ -1,4 +1,4 @@
-use core::pin::pin;
+use core::{cell::Cell, pin::pin};
 use embassy_futures::select::select_slice;
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
@@ -65,10 +65,15 @@ pub async fn watch_gpios_task(
         .await;
         status_signal.signal(SensorsStatus::On);
 
+        let shared_state = SharedPinsState {
+            pin_high_count: Cell::new(0),
+            is_pedal_hi_hat_pressed: Cell::new(false),
+        };
+
         select_slice(pin!(
             pins_notes_map
                 .iter_mut()
-                .map(|(pin, note)| watch_pin_for_hits(pin, *note, hit_events))
+                .map(|(pin, note)| watch_pin_for_hits(pin, *note, &shared_state, hit_events))
                 .collect::<Vec<_, 10>>()
                 .as_mut_slice()
         ))
@@ -80,35 +85,26 @@ pub async fn watch_gpios_task(
     }
 }
 
+struct SharedPinsState {
+    pin_high_count: Cell<u8>,
+    is_pedal_hi_hat_pressed: Cell<bool>,
+}
+
 async fn watch_pin_for_hits(
     pin: &mut Input<'_>,
     mut note: DrumNote,
+    state: &SharedPinsState,
     hit_events: &HitEventsChannel,
 ) {
-    static mut PIN_HIGH_COUNT: u8 = 0;
-    static mut IS_HIHAT_PEDAL_HOLD: bool = false;
-
     loop {
         {
             pin.wait_for_high().await;
             let timestamp = Instant::now();
 
-            // SAFETY: This task is only run on a single threaded executor, so it's safe because
-            // only one task at a time touch this counter. To remove unsafe, we could use a
-            // Mutex<CriticalSectionRawMutex, u8> or an AtomicU8 (that uses critical_section under
-            // the hood) but that's overkill cuz interrupt services don't touch this. Or we can use
-            // a RefCell but that would introduce unnecessary runtime check, since we know only one
-            // task mutate this counter at a time. This is defined as long as this task stay on a
-            // single executor on a single core.
-            unsafe {
-                PIN_HIGH_COUNT += 1;
-            };
+            state.pin_high_count.update(|c| c + 1);
 
             if note == DrumNote::PedalHiHat {
-                // SAFETY: Like above
-                unsafe {
-                    IS_HIHAT_PEDAL_HOLD = false;
-                }
+                state.is_pedal_hi_hat_pressed.set(false);
             }
 
             const UNHIT_DEBOUNCE_TIME: Duration = Duration::from_micros(300);
@@ -119,21 +115,18 @@ async fn watch_pin_for_hits(
             pin.wait_for_low().await;
             let timestamp = Instant::now();
 
-            // SAFETY: Like above
-            unsafe {
-                PIN_HIGH_COUNT -= 1;
-                if PIN_HIGH_COUNT == 0 {
-                    break;
-                }
-            };
+            state.pin_high_count.update(|c| c - 1);
+            if state.pin_high_count.get() == 0 {
+                // All pins are low. Probably sensors are turned off, so we're exiting.
+                // (It's unlikely that all pads are hit at the same instance.)
+                break;
+            }
 
             match note {
-                // SAFETY: Like above
-                DrumNote::PedalHiHat => unsafe {
-                    IS_HIHAT_PEDAL_HOLD = true;
-                },
-                // SAFETY: Like above
-                DrumNote::OpenHiHat if unsafe { IS_HIHAT_PEDAL_HOLD } => {
+                DrumNote::PedalHiHat => {
+                    state.is_pedal_hi_hat_pressed.set(true);
+                }
+                DrumNote::OpenHiHat if state.is_pedal_hi_hat_pressed.get() => {
                     note = DrumNote::ClosedHiHat;
                 }
                 _ => {}
