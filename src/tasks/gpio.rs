@@ -1,4 +1,5 @@
 use core::{cell::Cell, pin::pin};
+use defmt::trace;
 use embassy_futures::select::select_slice;
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
@@ -132,7 +133,9 @@ async fn watch_pin_for_hits(
                 _ => {}
             }
 
-            hit_events.force_send((timestamp, note));
+            let hit_event = (timestamp, note);
+            hit_events.force_send(hit_event);
+            trace!("Hit {}", hit_event);
 
             const HIT_DEBOUNCE_TIME: Duration = Duration::from_millis(20);
             Timer::at(timestamp + HIT_DEBOUNCE_TIME).await;
