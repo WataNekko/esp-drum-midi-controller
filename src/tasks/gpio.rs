@@ -93,7 +93,7 @@ struct SharedPinsState {
 
 async fn watch_pin_for_hits(
     pin: &mut Input<'_>,
-    mut note: DrumNote,
+    note: DrumNote,
     state: &SharedPinsState,
     hit_events: &HitEventsChannel,
 ) {
@@ -123,17 +123,17 @@ async fn watch_pin_for_hits(
                 break;
             }
 
-            match note {
-                DrumNote::PedalHiHat => {
-                    state.is_pedal_hi_hat_pressed.set(true);
-                }
-                DrumNote::OpenHiHat if state.is_pedal_hi_hat_pressed.get() => {
-                    note = DrumNote::ClosedHiHat;
-                }
-                _ => {}
+            if note == DrumNote::PedalHiHat {
+                state.is_pedal_hi_hat_pressed.set(true);
             }
 
+            let note = if note == DrumNote::OpenHiHat && state.is_pedal_hi_hat_pressed.get() {
+                DrumNote::ClosedHiHat
+            } else {
+                note
+            };
             let hit_event = (timestamp, note);
+
             hit_events.force_send(hit_event);
             trace!("Hit {}", hit_event);
 
