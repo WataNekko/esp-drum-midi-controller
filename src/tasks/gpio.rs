@@ -1,12 +1,12 @@
 use core::{cell::Cell, pin::pin};
-use defmt::trace;
+use defmt::{debug, trace};
 use embassy_futures::select::select_slice;
 use embassy_sync::{
     blocking_mutex::raw::{NoopRawMutex, RawMutex},
     channel::{Channel, Receiver, TrySendError},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Instant, TimeoutError, Timer, with_timeout};
 use esp_hal::gpio::{AnyPin, Input, InputConfig};
 use heapless::Vec;
 use midi_types::Note;
@@ -99,8 +99,7 @@ async fn watch_pin_for_hits(
 ) {
     loop {
         {
-            pin.wait_for_high().await;
-            let timestamp = Instant::now();
+            pin.wait_for_stable_high().await;
 
             state.pin_high_count.update(|c| c + 1);
 
@@ -108,12 +107,11 @@ async fn watch_pin_for_hits(
                 state.is_pedal_hi_hat_pressed.set(false);
             }
 
-            const UNHIT_DEBOUNCE_TIME: Duration = Duration::from_micros(300);
-            Timer::at(timestamp + UNHIT_DEBOUNCE_TIME).await;
+            trace!("Unhit {}", note);
         }
 
         {
-            pin.wait_for_low().await;
+            pin.wait_for_stable_low().await;
             let timestamp = Instant::now();
 
             state.pin_high_count.update(|c| c - 1);
@@ -135,10 +133,47 @@ async fn watch_pin_for_hits(
             let hit_event = (timestamp, note);
 
             hit_events.force_send(hit_event);
-            trace!("Hit {}", hit_event);
+            debug!("Hit {}", hit_event);
 
-            const HIT_DEBOUNCE_TIME: Duration = Duration::from_millis(20);
+            const HIT_DEBOUNCE_TIME: Duration = Duration::from_millis(30);
             Timer::at(timestamp + HIT_DEBOUNCE_TIME).await;
+        }
+    }
+}
+
+trait WaitForStable {
+    /// Minimum duration the input level is unchanged to be considered stable.
+    const STABLE_DURATION: Duration;
+
+    /// Wait until the pin is high, accounting for noise when the input level is stabilizing.
+    async fn wait_for_stable_high(&mut self);
+    /// Wait until the pin is low, accounting for noise when the input level is stabilizing.
+    async fn wait_for_stable_low(&mut self);
+}
+
+impl WaitForStable for Input<'_> {
+    const STABLE_DURATION: Duration = Duration::from_micros(150);
+
+    async fn wait_for_stable_high(&mut self) {
+        loop {
+            self.wait_for_high().await;
+
+            if with_timeout(Self::STABLE_DURATION, self.wait_for_low()).await == Err(TimeoutError) {
+                // Unchanged for the STABLE_DURATION.
+                break;
+            }
+        }
+    }
+
+    async fn wait_for_stable_low(&mut self) {
+        loop {
+            self.wait_for_low().await;
+
+            if with_timeout(Self::STABLE_DURATION, self.wait_for_high()).await == Err(TimeoutError)
+            {
+                // Unchanged for the STABLE_DURATION.
+                break;
+            }
         }
     }
 }
