@@ -8,14 +8,16 @@
 
 use defmt::{timestamp, unwrap};
 use embassy_executor::Spawner;
-use embassy_sync::channel::Channel;
-use embassy_sync::signal::Signal;
+use embassy_sync::{channel::Channel, signal::Signal};
 use embassy_time::Instant;
 use esp_alloc as _;
-use esp_hal::gpio::{Level, Output, OutputConfig, Pin};
-use esp_hal::peripherals::{self};
-use esp_hal::timer::systimer::SystemTimer;
-use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
+use esp_hal::{
+    clock::CpuClock,
+    gpio::{Level, Output, OutputConfig, Pin},
+    interrupt::software::SoftwareInterruptControl,
+    peripherals,
+    timer::timg::TimerGroup,
+};
 use esp_println as _;
 use esp_radio::ble::controller::BleConnector;
 use static_cell::StaticCell;
@@ -46,7 +48,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 timestamp!("[{=u64:us}]", Instant::now().as_micros());
 
-#[esp_hal_embassy::main]
+#[esp_rtos::main]
 async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
@@ -76,16 +78,14 @@ async fn main(spawner: Spawner) {
 
     esp_alloc::heap_allocator!(size: 72 * 1024);
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_preempt::start(timg0.timer0);
+    let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
 
     static RADIO: StaticCell<esp_radio::Controller<'static>> = StaticCell::new();
     let radio = RADIO.init(unwrap!(esp_radio::init()));
 
-    let systimer = SystemTimer::new(peripherals.SYSTIMER);
-    esp_hal_embassy::init(systimer.alarm0);
-
     let bluetooth = peripherals.BT;
-    let connector = BleConnector::new(radio, bluetooth);
+    let connector = BleConnector::new(radio, bluetooth, Default::default());
     let controller = BluetoothController::new(connector);
 
     ble::peripheral_run(

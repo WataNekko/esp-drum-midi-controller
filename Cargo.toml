@@ -5,7 +5,6 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-bt-hci = "0.5.0"
 defmt = "1.0.1"
 embassy-executor = { version = "0.9.1", features = ["defmt"] }
 embassy-futures = "0.1"
@@ -13,14 +12,13 @@ embassy-sync = "0.7.2"
 embassy-time = "0.5.0"
 esp-alloc = { version = "0.8.0" }
 esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32c3"] }
-esp-hal-embassy = { version = "0.9.0", features = ["esp32c3"] }
 esp-hal = { version = "1.0.0-rc.0", features = [
   "defmt",
   "unstable",
   "esp32c3",
 ] }
 esp-println = { version = "0.15.0", features = ["defmt-espflash", "esp32c3"] }
-esp-preempt = { version = "0.0.1", features = ["defmt", "esp32c3"] }
+esp-rtos = { version = "0.0.1", features = ["defmt", "embassy", "esp32c3"] }
 esp-radio = { version = "0.15.0", features = [
   "ble",
   "defmt",
@@ -28,7 +26,7 @@ esp-radio = { version = "0.15.0", features = [
   "esp32c3",
 ] }
 heapless = "0.9.1"
-trouble-host = { version = "0.3.0", default-features = false, features = [
+trouble-host = { version = "0.4.0", default-features = false, features = [
   "peripheral",
   "gatt",
   "derive",
@@ -41,13 +39,12 @@ midi-convert = "0.2.0"
 defer = "0.2.1"
 
 [patch.crates-io]
-esp-alloc = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-bootloader-esp-idf = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-hal-embassy = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-hal = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-println = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-preempt = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
-esp-radio = { git = "https://github.com/WataNekko/esp-hal.git", branch = "ble-connector-error-derive-defmt" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
+esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
+esp-rtos = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
+esp-radio = { git = "https://github.com/esp-rs/esp-hal.git", rev = "ad71da3183c31d522653e2c55a862e145bbab083" }
 midi-convert = { git = "https://github.com/rust-midi/midi-convert.git", rev = "bd788b093ed17162d5cfc24a80b472b90919470a" }
 
 [profile.dev]

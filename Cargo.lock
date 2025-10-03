@@ -69,9 +69,9 @@ checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
 
 [[package]]
 name = "bt-hci"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9172c3df73e30f9bcbf80d0f5a4700fbc6d6771329142d05c06bb7ece7032c7"
+checksum = "bb938a3b4c5cc6c2409275bad789c0346a0495fa071a0acc5d72b9bd3175a2f7"
 dependencies = [
  "btuuid",
  "defmt 1.0.1",
@@ -525,7 +525,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "esp-alloc"
 version = "0.8.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "allocator-api2",
  "cfg-if",
@@ -540,7 +540,7 @@ dependencies = [
 [[package]]
 name = "esp-bootloader-esp-idf"
 version = "0.2.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "cfg-if",
  "document-features",
@@ -554,7 +554,7 @@ dependencies = [
 [[package]]
 name = "esp-config"
 version = "0.5.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "document-features",
  "esp-metadata-generated",
@@ -567,7 +567,6 @@ dependencies = [
 name = "esp-drum-midi-controller"
 version = "0.1.0"
 dependencies = [
- "bt-hci",
  "defer",
  "defmt 1.0.1",
  "embassy-executor",
@@ -577,10 +576,9 @@ dependencies = [
  "esp-alloc",
  "esp-bootloader-esp-idf",
  "esp-hal",
- "esp-hal-embassy",
- "esp-preempt",
  "esp-println",
  "esp-radio",
+ "esp-rtos",
  "heapless 0.9.1",
  "midi-convert",
  "midi-types",
@@ -591,7 +589,7 @@ dependencies = [
 [[package]]
 name = "esp-hal"
 version = "1.0.0-rc.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "bitfield",
  "bitflags 2.9.4",
@@ -640,31 +638,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp-hal-embassy"
-version = "0.9.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
-dependencies = [
- "cfg-if",
- "document-features",
- "embassy-executor",
- "embassy-executor-timer-queue",
- "embassy-sync 0.7.2",
- "embassy-time-driver",
- "embassy-time-queue-utils",
- "esp-config",
- "esp-hal",
- "esp-hal-procmacros",
- "esp-metadata-generated",
- "esp-sync",
- "portable-atomic",
- "riscv",
- "static_cell",
-]
-
-[[package]]
 name = "esp-hal-procmacros"
 version = "0.19.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "document-features",
  "litrs",
@@ -678,7 +654,7 @@ dependencies = [
 [[package]]
 name = "esp-metadata"
 version = "0.8.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "anyhow",
  "basic-toml",
@@ -692,7 +668,7 @@ dependencies = [
 [[package]]
 name = "esp-metadata-generated"
 version = "0.1.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "esp-metadata",
 ]
@@ -700,7 +676,7 @@ dependencies = [
 [[package]]
 name = "esp-phy"
 version = "0.0.1"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "cfg-if",
  "esp-config",
@@ -708,31 +684,12 @@ dependencies = [
  "esp-metadata-generated",
  "esp-sync",
  "esp-wifi-sys",
- "portable-atomic",
-]
-
-[[package]]
-name = "esp-preempt"
-version = "0.0.1"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
-dependencies = [
- "allocator-api2",
- "cfg-if",
- "defmt 1.0.1",
- "document-features",
- "esp-alloc",
- "esp-config",
- "esp-hal",
- "esp-metadata-generated",
- "esp-radio-preempt-driver",
- "esp-sync",
- "portable-atomic",
 ]
 
 [[package]]
 name = "esp-println"
 version = "0.15.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "defmt 1.0.1",
  "document-features",
@@ -745,7 +702,7 @@ dependencies = [
 [[package]]
 name = "esp-radio"
 version = "0.15.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "allocator-api2",
  "bt-hci",
@@ -761,7 +718,7 @@ dependencies = [
  "esp-hal-procmacros",
  "esp-metadata-generated",
  "esp-phy",
- "esp-radio-preempt-driver",
+ "esp-radio-rtos-driver",
  "esp-sync",
  "esp-wifi-sys",
  "heapless 0.9.1",
@@ -774,14 +731,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp-radio-preempt-driver"
+name = "esp-radio-rtos-driver"
 version = "0.0.1"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 
 [[package]]
 name = "esp-riscv-rt"
 version = "0.12.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "defmt 1.0.1",
  "document-features",
@@ -792,7 +749,7 @@ dependencies = [
 [[package]]
 name = "esp-rom-sys"
 version = "0.1.1"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "cfg-if",
  "document-features",
@@ -800,9 +757,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp-rtos"
+version = "0.0.1"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
+dependencies = [
+ "allocator-api2",
+ "cfg-if",
+ "defmt 1.0.1",
+ "document-features",
+ "embassy-executor",
+ "embassy-sync 0.7.2",
+ "embassy-time-driver",
+ "embassy-time-queue-utils",
+ "esp-alloc",
+ "esp-config",
+ "esp-hal",
+ "esp-hal-procmacros",
+ "esp-metadata-generated",
+ "esp-radio-rtos-driver",
+ "esp-sync",
+ "portable-atomic",
+]
+
+[[package]]
 name = "esp-sync"
 version = "0.0.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "cfg-if",
  "defmt 1.0.1",
@@ -1485,19 +1465,18 @@ dependencies = [
 
 [[package]]
 name = "somni-expr"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa2242e96675e71a00281c04d341df3b9912e4968674d713d2e7499802f2aaff"
+checksum = "3ed9b7648d5e8b2df6c5e49940c54bcdd2b4dd71eafc6e8f1c714eb4581b0f53"
 dependencies = [
- "indexmap",
  "somni-parser",
 ]
 
 [[package]]
 name = "somni-parser"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d9ecb2c142aac72bff4d0b35b4907c6625c82d171c7e2f3602f31b614467d88"
+checksum = "74ee90f60ebcade244355ed4ff4077e364b251508c3462af386a9ee96c5a5492"
 
 [[package]]
 name = "stable_deref_trait"
@@ -1637,9 +1616,9 @@ dependencies = [
 
 [[package]]
 name = "trouble-host"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2bc4ea8620a551c1ec040e21e871de37d2c555d7179fe1fd7d0c167cf8faeb1"
+checksum = "78a852f6e193f71732ce3c33661fea2575ba3dac6f48bbe1713059373f96e864"
 dependencies = [
  "bt-hci",
  "defmt 1.0.1",
@@ -1657,9 +1636,9 @@ dependencies = [
 
 [[package]]
 name = "trouble-host-macros"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab5c25c521a9a0cad8c62b86bd3ca9abd6c94842ecf62b64fc56f0d91bb1a426"
+checksum = "bcb85bec3a8393c22ca1a7c25c82c2d33689ab412f3487c492fd01a033ede7c2"
 dependencies = [
  "convert_case",
  "darling 0.20.11",
@@ -1828,7 +1807,7 @@ dependencies = [
 [[package]]
 name = "xtensa-lx"
 version = "0.12.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "critical-section",
 ]
@@ -1836,7 +1815,7 @@ dependencies = [
 [[package]]
 name = "xtensa-lx-rt"
 version = "0.20.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "defmt 1.0.1",
  "document-features",
@@ -1847,7 +1826,7 @@ dependencies = [
 [[package]]
 name = "xtensa-lx-rt-proc-macros"
 version = "0.4.0"
-source = "git+https://github.com/WataNekko/esp-hal.git?branch=ble-connector-error-derive-defmt#5abde84ff9d6d2f8ac8b40e0f1407a687c141b2c"
+source = "git+https://github.com/esp-rs/esp-hal.git?rev=ad71da3183c31d522653e2c55a862e145bbab083#ad71da3183c31d522653e2c55a862e145bbab083"
 dependencies = [
  "proc-macro2",
  "quote",
