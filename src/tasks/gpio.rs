@@ -1,4 +1,8 @@
-use core::{cell::Cell, pin::pin};
+use core::{
+    cell::{Cell, RefCell},
+    pin::pin,
+};
+use defer::defer;
 use defmt::{debug, trace};
 use embassy_futures::select::select_slice;
 use embassy_sync::{
@@ -6,8 +10,8 @@ use embassy_sync::{
     channel::{Channel, Receiver, TrySendError},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, TimeoutError, Timer, with_timeout};
-use esp_hal::gpio::{AnyPin, Input, InputConfig};
+use embassy_time::{Duration, Instant, Ticker, TimeoutError, Timer, with_timeout};
+use esp_hal::gpio::{AnyPin, Input, InputConfig, Output};
 use heapless::Vec;
 use midi_types::Note;
 
@@ -190,5 +194,26 @@ where
                 }
             }
         }
+    }
+}
+
+pub async fn blink(output: &mut Output<'_>, interval: Duration) -> ! {
+    let mut ticker = Ticker::every(interval);
+    let initial_level = output.output_level();
+    trace!(
+        "Start blinking {} with interval {}. Initially {}.",
+        output, interval, initial_level
+    );
+
+    let output = RefCell::new(output);
+    defer!({
+        let mut output = output.borrow_mut();
+        trace!("Stop blinking {}. Resetting to {}.", *output, initial_level);
+        output.set_level(initial_level);
+    });
+
+    loop {
+        output.borrow_mut().toggle();
+        ticker.next().await;
     }
 }

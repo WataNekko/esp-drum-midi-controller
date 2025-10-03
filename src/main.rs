@@ -91,6 +91,7 @@ async fn main(spawner: Spawner) {
     ble::peripheral_run(
         controller,
         sensors_status_signal,
+        peripherals.GPIO8.degrade(),
         hit_events_channel.receiver(),
     )
     .await;

@@ -217,6 +217,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "defer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "930c7171c8df9fb1782bdf9b918ed9ed2d33d1d22300abb754f9085bc48bf8e8"
+
+[[package]]
 name = "defmt"
 version = "0.3.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -562,6 +568,7 @@ name = "esp-drum-midi-controller"
 version = "0.1.0"
 dependencies = [
  "bt-hci",
+ "defer",
  "defmt 1.0.1",
  "embassy-executor",
  "embassy-futures",

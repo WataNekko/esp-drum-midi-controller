@@ -1,12 +1,16 @@
 use defmt::{error, info, unwrap, warn};
-use embassy_futures::{join::join, select::select};
+use embassy_futures::{
+    join::join,
+    select::{Either, select},
+};
 use embassy_time::{Duration, with_timeout};
+use esp_hal::gpio::{AnyPin, Level, Output, OutputConfig};
 use midi_types::{Channel, MidiMessage, Value7};
 use trouble_host::prelude::*;
 
 use crate::{
     BluetoothController,
-    tasks::gpio::{HitEventsReceiver, SensorsStatus, SensorsStatusSignal},
+    tasks::gpio::{HitEventsReceiver, SensorsStatus, SensorsStatusSignal, blink},
     trouble_midi::MidiService,
 };
 
@@ -20,6 +24,7 @@ struct GattServer {
 pub async fn peripheral_run(
     controller: BluetoothController,
     status_signal: &SensorsStatusSignal,
+    status_led: AnyPin<'_>,
     hit_events: HitEventsReceiver<'_>,
 ) {
     let mut resources: HostResources<DefaultPacketPool, 1, 0> = HostResources::new();
@@ -37,6 +42,8 @@ pub async fn peripheral_run(
         }
     )));
 
+    let mut status_led = Output::new(status_led, Level::High, OutputConfig::default());
+
     let wait_for_status = async |status: SensorsStatus| {
         while status_signal.wait().await != status {}
         info!("Sensors switched {}", status);
@@ -47,7 +54,13 @@ pub async fn peripheral_run(
             wait_for_status(SensorsStatus::On).await;
 
             select(
-                midi_service_task(BLE_SERVICE_NAME, &mut peripheral, &server, hit_events),
+                midi_service_task(
+                    BLE_SERVICE_NAME,
+                    &mut peripheral,
+                    &server,
+                    &mut status_led,
+                    hit_events,
+                ),
                 wait_for_status(SensorsStatus::Off),
             )
             .await;
@@ -66,22 +79,33 @@ async fn midi_service_task<'a>(
     service_name: &str,
     peripheral: &mut Peripheral<'a, BluetoothController, DefaultPacketPool>,
     server: &GattServer<'a>,
+    status_led: &mut Output<'_>,
     hit_events: HitEventsReceiver<'_>,
 ) {
     info!("Starting advertising and GATT service");
 
-    while let Ok(res) = with_timeout(
+    while let Ok(Either::First(res)) = with_timeout(
         Duration::from_secs(60),
-        advertise_and_connect(service_name, peripheral, server),
+        select(
+            advertise_and_connect(service_name, peripheral, server),
+            blink(status_led, Duration::from_millis(1000)),
+        ),
     )
     .await
     {
         let conn = unwrap!(res);
-        select(
+
+        let connected_led_blink_task = with_timeout(
+            Duration::from_secs(1),
+            blink(status_led, Duration::from_millis(100)),
+        );
+
+        let connection_service_tasks = select(
             gatt_events_task(&conn),
             notify_midi_events_task(server, &conn, hit_events),
-        )
-        .await; // Either task finishes means we're disconnected.
+        ); // Either task finishes means we're disconnected.
+
+        let _ = join(connected_led_blink_task, connection_service_tasks).await;
     }
 
     warn!("[adv] Timeout. Not connected.");
