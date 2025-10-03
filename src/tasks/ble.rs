@@ -131,6 +131,7 @@ async fn notify_midi_events_task(
     hit_events: HitEventsReceiver<'_>,
 ) {
     let midi = &server.midi_service.midi_event;
+    hit_events.clear();
 
     loop {
         let (timestamp, note) = hit_events.receive().await;
