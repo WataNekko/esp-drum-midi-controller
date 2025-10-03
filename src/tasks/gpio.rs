@@ -52,14 +52,11 @@ pub async fn watch_gpios_task(
     let mut pins_notes_map =
         pins_notes_map.map(|(pin, note)| (Input::new(pin, InputConfig::default()), note));
 
-    const INITIAL_SENSORS_STABILIZE_TIME: Duration = Duration::from_millis(200);
-    Timer::after(INITIAL_SENSORS_STABILIZE_TIME).await;
-
     loop {
         select_slice(pin!(
             pins_notes_map
                 .iter_mut()
-                .map(|(pin, ..)| pin.wait_for_high())
+                .map(|(pin, ..)| pin.wait_for_stable_high())
                 .collect::<Vec<_, 10>>()
                 .as_mut_slice()
         ))
@@ -80,9 +77,6 @@ pub async fn watch_gpios_task(
         ))
         .await;
         status_signal.signal(SensorsStatus::Off);
-
-        const SWITCH_OFF_SENSORS_STABILIZE_TIME: Duration = Duration::from_millis(200);
-        Timer::after(SWITCH_OFF_SENSORS_STABILIZE_TIME).await;
     }
 }
 
