@@ -130,7 +130,11 @@ async fn advertise_and_connect<'a, 's, C: Controller>(
     )?;
     let advertiser = peripheral
         .advertise(
-            &Default::default(),
+            &AdvertisementParameters {
+                interval_min: Duration::from_millis(5),
+                interval_max: Duration::from_millis(15),
+                ..Default::default()
+            },
             Advertisement::ConnectableScannableUndirected {
                 adv_data: &advertiser_data[..len],
                 scan_data: &[],
