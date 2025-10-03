@@ -117,6 +117,8 @@ async fn advertise_and_connect<'a, 's, C: Controller>(
 }
 
 async fn gatt_events_task<P: PacketPool>(conn: &GattConnection<'_, '_, P>) {
+    // FIXME: Fix connection with iOS not maintained.
+    // TODO: Bonding? (Auto-reconnect?)
     let reason = loop {
         if let GattConnectionEvent::Disconnected { reason } = conn.next().await {
             break reason;
