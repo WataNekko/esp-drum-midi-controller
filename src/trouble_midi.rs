@@ -3,7 +3,9 @@ use midi_convert::render_slice::MidiRenderSlice;
 use midi_types::MidiMessage;
 use trouble_host::{prelude::*, types::gatt_traits::FromGattError};
 
-#[gatt_service(uuid = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700")]
+pub const MIDI_SERVICE_UUID: Uuid = uuid!("03B80E5A-EDE8-4B33-A751-6CE34EC4C700");
+
+#[gatt_service(uuid = MIDI_SERVICE_UUID)]
 pub struct MidiService {
     #[characteristic(uuid = "7772E5DB-3868-4112-A1A9-F2669D106BF3", read, write_without_response, notify, value = MidiMessage::Reset.into())]
     pub midi_event: BleMidiPacket<5>,
