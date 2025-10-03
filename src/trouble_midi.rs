@@ -124,4 +124,6 @@ impl<const SIZE: usize> BleMidiPacketBuilder<SIZE> {
     pub fn build(self) -> BleMidiPacket<SIZE> {
         self.packet
     }
+
+    // TODO: Add builder functions for making running status MIDI packets.
 }
