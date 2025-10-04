@@ -14,7 +14,7 @@ use crate::{
     trouble_midi::{MIDI_SERVICE_UUID, MidiService},
 };
 
-const BLE_SERVICE_NAME: &str = "ESP MIDI Controller";
+const BLE_SERVICE_NAME: &str = "ESP MIDI";
 
 #[gatt_server]
 struct GattServer {
@@ -119,7 +119,7 @@ async fn advertise_and_connect<'a, 's, C: Controller>(
     let mut midi_service_uuid = [0; 16];
     MIDI_SERVICE_UUID.bytes(&mut midi_service_uuid);
 
-    let mut advertiser_data = [0; 45];
+    let mut advertiser_data = [0; 31];
     let len = AdStructure::encode_slice(
         &[
             AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
