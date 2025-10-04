@@ -171,9 +171,21 @@ async fn notify_midi_events_task(
 
         const MIDI_CHANNEL: Channel = Channel::new(9);
         const MIDI_VELOCITY: Value7 = Value7::new(100);
+
         let packet = (
             timestamp,
             MidiMessage::NoteOn(MIDI_CHANNEL, note.into(), MIDI_VELOCITY),
+        )
+            .into();
+
+        if midi.notify(conn, &packet).await.is_err() {
+            error!("[notify_midi_events_task] error notifying connection");
+            break;
+        };
+
+        let packet = (
+            timestamp,
+            MidiMessage::NoteOff(MIDI_CHANNEL, note.into(), 0.into()),
         )
             .into();
 
